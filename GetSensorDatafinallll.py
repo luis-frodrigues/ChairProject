@@ -10,7 +10,9 @@ import Adafruit_DHT
 import lsm303d
 import threading
 
+
 DEBUG = True
+
 
 # DO NOT try to set values under 200 ms or the server will kick you out
 publishing_period = 1000
@@ -28,8 +30,9 @@ hum_sensor = Adafruit_DHT.DHT11
 # Accelerometer
 accel_Sensor = lsm303d.lsm303d() # 0x1D
 
+# Emotional State
+emotion_state = "normal"
 
-estado= "normal"
 
 # mqtt credentials. Also make sure to change device_id at bottom of page
 creds = {
@@ -159,7 +162,7 @@ def InitializeValues(client):
 
     # Accel
     accel_last = accel_Sensor.getRealAccel()
-    init_time = time.clock()
+    init_time = time.time()
 
     return accel_last, init_time
 
@@ -199,8 +202,6 @@ def GetSensorTemp(client):
         if DEBUG:
             print "Temp sent"
     return body_temp, ctrl_temp
-            
-
 
 
 # Get Sensor Humidity
@@ -238,7 +239,7 @@ def getHumidity(client, bodyPin, RoomPin, file):
 def GetAccelerometerPosition(client, accel_last, init_time, file):
 
     accel = accel_Sensor.getRealAccel()
-    end_time = time.clock()
+    end_time = time.time()
     time_delta = end_time - init_time
     
     # x_avgaccel = (accel[0] + accel_last[0])*490.05 # 9.801*100/2
@@ -354,24 +355,41 @@ def getPressure(client,file):
         fsr_value.append(readadc(i,spi))
         print fsr_value[i]
         file.write("%f " % fsr_value[i])
-    
-    if 
 
+    # Back position
+    if fsr_value[0] < 10 and fsr_value[3] < 10:
+        back_position = -999
+    else:
+        back_position = 7.5*(fsr_value[3] - fsr_value[0])/900
 
-    message = {"pressure"+str(i): {"value": fsr_value[i]} }
-    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False)
+    # Bottom central position
+    if fsr_value[1] < 10 and fsr_value[2] < 10 and fsr_value[4] < 10:
+        bottomcentral_position = -999
+    else:
+        # 18.6 cm ??
+        bottomcentral_position = 9.3*(2*fsr_value[1] - fsr_value[2] - fsr_value[4])/1800
 
+    # Bottom side position
+    if fsr_value[2] < 10 and fsr_value[4] < 10:
+        bottomside_position = -999
+    else:
+        # 15 cm ??
+        bottomside_position = 7.5*(fsr_value[2] - fsr_value[4])/900
 
-
-
+    back_message = {"back_position": {"value": back_position}}
+    bottomcentral_message = {"bottomcentral_position": {"value": bottomcentral_position}}
+    bottomside_message = {"bottomside_position": {"value": bottomside_position}}
+    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(back_message), qos=1, retain=False)
+    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(bottomcentral_message), qos=1, retain=False)
+    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(bottomside_message), qos=1, retain=False)
 
 
 def my_state():
-    global estado
+    global emotion_state
     while True:
         print('inserir novo estado')
-        estado = input()
-    
+        emotion_state = input()
+
 
 ########## MAIN ##########
 
@@ -384,8 +402,8 @@ if __name__ == '__main__':
     SensorAddressSetup()
     data=[]
     
-    state = threading.Thread(name='my_state', target=my_state)
-    state.start()
+    emotion_state = threading.Thread(name='my_state', target=my_state)
+    emotion_state.start()
     
     client = mqtt.Client(client_id=creds['clientId'])
     delegate = MqttDelegate(client, creds)
@@ -407,11 +425,11 @@ if __name__ == '__main__':
             file.write("%f " % body_temp)
             file.write("%f " % ctrl_temp)            
             GetAccelerometerPosition(client, accel_last, init_time, file)
-
-            print "bitalino"
-            ecgMV = bitalino(client)    
             #x_media+=x_avgaccel
             #y_media+=y_avgaccel
+
+            print "bitalino"
+            ecgMV = bitalino(client)
 
             print "humidity"
             bodyHumidity, rooomHumidity = getHumidity(client, bodyPin, RoomPin, file)
@@ -419,7 +437,7 @@ if __name__ == '__main__':
             print "pressure"
             getPressure(client, file)
             
-        file.write(estado)
+        file.write(emotion_state)
         file.write("\n")
         
         # DEBUG
