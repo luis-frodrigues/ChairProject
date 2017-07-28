@@ -33,6 +33,8 @@ flag_hum = False
 
 # Accelerometer
 accel_Sensor = lsm303d.lsm303d() # 0x1D
+flag_accel = False
+flag_jerk = False
 
 # Emotional State
 emotion_state = "normal"
@@ -228,21 +230,21 @@ def getHumidity(client, hum_bodyPin, hum_RoomPin, file):
     bodyHumidity, bodyTemperature = Adafruit_DHT.read_retry(hum_sensor, hum_bodyPin)
     roomHumidity, bodyTemperature2 = Adafruit_DHT.read_retry(hum_sensor, hum_RoomPin)
     
-    deltahum = bodyHumidity-roomHumidity
+    difhum = bodyHumidity-roomHumidity
 
-    if deltahum < 5 and flag_hum:
-        message = {"dif_Humidity": {"value": 0} }
+    if difhum < 5 and flag_hum:
+        message = {"body_Humidity": {"value": 0} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
         bodyHumidity=0
         flag_hum=False
         
-    elif deltahum > 5:
+    elif difhum > 5:
         if not flag_hum:
-            message = {"dif_Humidity": {"value": 0}}
+            message = {"body_Humidity": {"value": 0}}
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_hum = True            
+            flag_hum = True
             
-        message = {"dif_Humidity": {"value": form(deltahum)}}
+        message = {"body_Humidity": {"value": form(bodyHumidity)}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )               
     
     file.write("%f," % bodyHumidity)
@@ -251,6 +253,9 @@ def getHumidity(client, hum_bodyPin, hum_RoomPin, file):
 
 # Get Accelerometer Position
 def GetAccelerometerPosition(client, accel_last, init_time, file):
+
+    global flag_accel
+    global flag_jerk
 
     accel = accel_Sensor.getRealAccel()
     end_time = time.time()
@@ -285,75 +290,32 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     accel_last_squared = accel_last[0]*accel_last[0] + accel_last[1]*accel_last[1]
     jerk = (accel_squared - accel_last_squared) / time_delta
     
-    if (accel[0] < 0.1 or accel[0] > 0.1) and flag_acc:
-        message = {"x_accel": {"value": 0}}
+    if accel_squared < 0.1 and flag_accel:
+        message = {"accel_squared": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        accel[0]=0
-        flag_acc=False        
-    elif accel[0] > 0.1 or accel[0] < 0.1:
-        if not flag_acc:
-            message = {"x_accel": {"value": 0}}
+        accel_squared = 0
+        flag_accel = False      
+    else:
+        if not flag_accel:
+            message = {"accel_squared": {"value": 0}}
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
+            flag_accel = True
 
-        message = {"x_accel": {"value": form(accel[0])} }
+        message = {"accel_squared": {"value": form(accel_squared)} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
-
-    if (accel[0] < 0.1 or accel[0] > 0.1) and flag_acc:
-        message = {"x_accel": {"value": 0}}
+    if jerk < 0.1 and flag_jerk:
+        message = {"jerk": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        accel[0]=0
-        flag_acc=False        
-    elif accel[0]>0.1 or accel[0]<0.1:
-        if not flag_acc:
-            message = {"x_accel": {"value": 0}}
+        jerk = 0
+        flag_jerk = False      
+    else:
+        if not flag_jerk:
+            message = {"jerk": {"value": 0}}
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
+            flag_jerk = True
 
-        message = {"x_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-        
-    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
-        message = {"y_accel": {"value": 0}}
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        accel[1]=0
-        flag_acc=False        
-    elif accel[1]>0.1 or accel[1]<0.1:
-        if not flag_acc:
-            message = {"y_accel": {"value": 0}}
-            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
-
-        message = {"x_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-
-    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
-        message = {"x_accel": {"value": 0}}
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        accel[0]=0
-        flag_acc=False        
-    elif accel[0]>0.1 or accel[0]<0.1:
-        if not flag_acc:
-            message = {"x_accel": {"value": 0}}
-            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
-
-        message = {"x_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-        
-    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
-        message = {"y_accel": {"value": 0}}
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        accel[1]=0
-        flag_acc=False        
-    elif accel[1]>0.1 or accel[1]<0.1:
-        if not flag_acc:
-            message = {"y_accel": {"value": 0}}
-            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
-
-        message = {"y_accel": {"value": form(accel[0])} }
+        message = {"jerk": {"value": form(jerk)} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
     accel_last = accel
@@ -365,8 +327,6 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
 
     file.write("%f," % accel_squared)
     file.write("%f," % jerk)
-
-    time.sleep(0.2)
 
 
 # Get Bitalino mV
