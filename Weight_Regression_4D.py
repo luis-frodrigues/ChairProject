@@ -2,7 +2,9 @@ import csv
 from sklearn import linear_model
 import numpy as np
 
+
 DEBUG = True
+
 
 def loadDataset(filename, trainingSet=[], nvariables=0):
     with open(filename, 'r') as csvfile:
@@ -38,7 +40,7 @@ def main():
     # Train the model using the training sets
     regr.fit([[i[j] for j in range(3)] for i in trainingSet], [i[3] for i in trainingSet])
     
-    if True:
+    if DEBUG:
         print ('\nCoefficients:   ', regr.coef_)
         # Mean Squared Error test
         print ('Mean squared error: %.2f' % np.mean((regr.predict([[400.,200.,200.],[500,200,200]]) - [70,75]) ** 2))

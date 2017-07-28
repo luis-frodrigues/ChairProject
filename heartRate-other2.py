@@ -1,6 +1,5 @@
 import csv
 import random
-import operator
 import math
 import numpy
 
@@ -109,8 +108,10 @@ def main ():
                 #i=0
                 rate=numpy.mean(vec[i-4:i-1])
                 print("Hearth Rate2: %f\n" % rate)
-        iteration=iteration+1
         
+        iteration=iteration+1
+        file.write("%f " % rate)
+        message = {"pulse": {"value": form(rate)} }        
     print("cheguei aqui\n")   
     
     
