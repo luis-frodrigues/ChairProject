@@ -13,6 +13,7 @@ import csv
 import math
 import numpy
 
+
 DEBUG = True
 
 # DO NOT try to set values under 200 ms or the server will kick you out
@@ -89,42 +90,6 @@ creds6 = {
     'port':     1883
 }
 
-#Gives the max and min values that will be used for the tresholds
-def HeartRate(heartValue=0, TimeEnd=False, maxValues=[], minValues=[]):   
-    minHeartRate=0
-    maxHeartRate=0
-    
-    if not TimeEnd :
-        maxValues.append(float(heartValue)**3)
-    else:
-        maxValues.sort(reverse=True)
-        minValues= maxValues[-4:-1]        
-        maxValues=maxValues[:4]
-        #Calculates the mean values of the vector for the max and min values
-        minHeartRate=numpy.mean(minValues)
-        maxHeartRate=numpy.mean(maxValues)
-        return maxHeartRate,minHeartRate;    
-    return maxHeartRate, minHeartRate;
-
-#Calculates the mean value of heart rate from the last 4 values recorded
-def hearRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,rate):
-    if(ecgMV <= 0.8*minHeartRate):
-        MinimumTime= iteration*timeSpan
-                   
-    if(ecgMV >= 0.85*maxHeartRate and (iteration*timeSpan)-actualTime > 0.5 and (iteration*timeSpan)-MinimumTime < 0.35):
-        i+=1
-        oldTime=actualTime
-        actualTime= iteration*timeSpan
-        
-        if i!=0:
-            vec.append(1/(float(actualTime)-float(oldTime))*60)
-    
-        if(i>3):
-            rate=numpy.mean(vec[i-4:i-1])
- 
-    #iteration is used to count the time and to calculate the heart rate
-    iteration=+1
-    return rate;
 
 # A delegate class providing callbacks for an MQTT client.
 class MqttDelegate(object):
@@ -191,6 +156,53 @@ def readadc(adcnum,spi):
     return data
 
 
+#It reads a file with nvariables per line, where the variables are separated by commas
+#The trainingSet is a list of the lines read which is also a list containing the variables isolated
+def loadDataset(filename, trainingSet=[], nvariables=0):
+    with open(filename, 'r') as csvfile:
+        lines = csv.reader(csvfile)
+        dataset = list(lines)
+        
+        for x in range(int(len(dataset))):
+            trainingSet.append(dataset[x])
+        
+#Gives the max and min values that will be used for the tresholds
+def HeartRate(heartValue=0, TimeEnd=False, maxValues=[], minValues=[]):   
+    minHeartRate=0
+    maxHeartRate=0
+    
+    if not TimeEnd :
+        maxValues.append(float(heartValue)**3)
+    else:
+        maxValues.sort(reverse=True)
+        minValues= maxValues[-4:-1]        
+        maxValues=maxValues[:4]
+        #Calculates the mean values of the vector for the max and min values
+        minHeartRate=numpy.mean(minValues)
+        maxHeartRate=numpy.mean(maxValues)
+        return maxHeartRate,minHeartRate;    
+    return maxHeartRate, minHeartRate;
+
+#Calculates the mean value of heart rate from the last 4 values recorded
+def hearRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,rate):
+    if(ecgMV <= 0.8*minHeartRate):
+        MinimumTime= iteration*timeSpan
+                   
+    if(ecgMV >= 0.85*maxHeartRate and (iteration*timeSpan)-actualTime > 0.5 and (iteration*timeSpan)-MinimumTime < 0.35):
+        i+=1
+        oldTime=actualTime
+        actualTime= iteration*timeSpan
+        
+        if i!=0:
+            vec.append(1/(float(actualTime)-float(oldTime))*60)
+    
+        if(i>3):
+            rate=numpy.mean(vec[i-4:i-1])
+ 
+    #iteration is used to count the time and to calculate the heart rate
+    iteration=+1
+    return rate;
+
 # Initialize Values
 def InitializeValues(client):
     # Temp
@@ -238,9 +250,6 @@ def GetSensorTemp(client):
         if DEBUG:
             print "Temp sent"
     return body_temp, ctrl_temp
-            
-
-
 
 # Get Sensor Humidity
 def getHumidity(client, bodyPin, RoomPin, file):
@@ -271,7 +280,6 @@ def getHumidity(client, bodyPin, RoomPin, file):
     file.write("%f " % roomHumidity)
 
     return bodyHumidity, roomHumidity
-
 
 # Get Accelerometer Position
 def GetAccelerometerPosition(client, accel_last, init_time, file):
@@ -308,58 +316,9 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     accel_squared = accel[0]*accel[0] + accel[1]*accel[1]
     accel_last_squared = accel_last[0]*accel_last[0] + accel_last[1]*accel_last[1]
     jerk = (accel_squared - accel_last_squared) / time_delta
-    
-    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
-        message = {"x_accel": {"value": 0}}
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
-        accel[0]=0
-        flag_acc=False        
-    elif accel[0]>0.1 or accel[0]<0.1:
-        if not flag_acc:
-            message = {"x_accel": {"value": 0}}
-            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
-<<<<<<< HEAD
 
-        message = {"x_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-
-=======
-
-        message = {"x_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
-    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
-        message = {"x_accel": {"value": 0}}
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
-        accel[0]=0
-        flag_acc=False        
-    elif accel[0]>0.1 or accel[0]<0.1:
-        if not flag_acc:
-            message = {"x_accel": {"value": 0}}
-            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
-
-        message = {"x_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-        
-    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
-        message = {"y_accel": {"value": 0}}
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
-        accel[1]=0
-        flag_acc=False        
-    elif accel[1]>0.1 or accel[1]<0.1:
-        if not flag_acc:
-            message = {"y_accel": {"value": 0}}
-            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-            flag_acc = True
-
-        message = {"y_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+    message = {"x_accel": {"value": form(accel[0])}, "y_accel": {"value": form(accel[1])} }
+    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
     accel_last = accel
     init_time = end_time
@@ -368,19 +327,25 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     if DEBUG:
         print "Accel/jerk sent"
 
-    file.write("%f " % accel_squared)
-    file.write("%f" % jerk)
+    file.write("%f," % accel_squared)
+    file.write("%f," % jerk)
 
-    time.sleep(0.2)
+    
 
 
 # Get Bitalino bpm
-def bitalino(client):
+def bitalino(client,TresholdCalculated):
     spi = spidev.SpiDev()
     spi.open(0,0)
     bitalino = readadc(5,spi)
     ecgV = (bitalino*3.3/2**10-3.3/2)/1100 #VALUE IN VOLTS
     ecgMV = ecgV*1000 #value in mvolts
+    
+    if TresholdCalculated:
+        file.write("%f," % ecgMV)
+        message = {"pulse": {"value": form(ecgMV)} }
+        print ecgMV
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
     
     return ecgMV
 
@@ -394,18 +359,10 @@ def getPressure(client,file):
     for i in range(5):
         fsr_value.append(readadc(i,spi))
         print fsr_value[i]
-        file.write("%f " % fsr_value[i])
-    
-    if 
-
-
-    message = {"pressure"+str(i): {"value": fsr_value[i]} }
-    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False)
-
-
-
-
-
+        file.write("%f," % fsr_value[i])
+        message = {"pressure"+str(i): {"value": fsr_value[i]} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False)     
+        
 
 def my_state():
     global estado
@@ -420,10 +377,8 @@ if __name__ == '__main__':
 
     sensors = True
     bodyPin = 17
-    RoomPin = 18    
+    RoomPin = 18   
     temp_media =0
-    SensorAddressSetup()
-    data=[]
     timeSpan=0.01
     maxHeartRate=0
     minHeartRate=0
@@ -435,8 +390,9 @@ if __name__ == '__main__':
     oldTime=0
     bpm_rate=0.0
     i=0
-    ecgMV=0.0
-    vec=[]    
+    SensorAddressSetup()
+    data=[]
+    vec=[]
     
     state = threading.Thread(name='my_state', target=my_state)
     state.start()
@@ -448,22 +404,19 @@ if __name__ == '__main__':
     accel_last, init_time = InitializeValues(client)
     file = open("data_sensors.txt", "a") 
     
-<<<<<<< HEAD
     #The first 5.2 seconds are needed to create a threshold for the max points
     #to calculate then the heart rate
     start = time.time()
     while (time.time()-start)<5.2:
         for i in range(1,5):
-            ecgMV = bitalino(client)
+            ecgMV = bitalino(client, False)
             maxHeartRate, minHeartRate= HeartRate(ecgMV, False, maxValues=maxValues, minValues=minValues)
             time.sleep(timeSpan)
     
     #Make the mean of values to get the threshold of max and min values
-    maxHeartRate, minHeartRate= HeartRate(ecgMV, True, maxValues=maxValues, minValues=minValues)    
+    maxHeartRate, minHeartRate= HeartRate(ecgMV, True, maxValues=maxValues, minValues=minValues)
     
-=======
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
-    while True:
+    while sensors:
         client.loop()
         
         print "temp"
@@ -472,45 +425,38 @@ if __name__ == '__main__':
         temp_media = temp_media + temp
         data.append(temp)
         
-<<<<<<< HEAD
+        
         for k in range(1,5):
-            #Read ECG values for 10 x timeSpan seconds
-            for x in range(1,10):           
-                ecgMV = bitalino(client)
-                bpm_rate = hearRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,bpm_rate)
-                #pace to read the sensor values 
-                time.sleep(timeSpan)           
-                    
-            print body_temp
-            print ctrl_temp   
-            
-            file.write(estado)
-            file.write("\n")            
-             
-=======
-        for i in range(1,5):
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
-            file.write("%f " % body_temp)
-            file.write("%f " % ctrl_temp)            
             GetAccelerometerPosition(client, accel_last, init_time, file)
             
-            print "bitalino"
-            file.write("%f," % bpm_rate)
-            message = {"pulse": {"value": form(bpm_rate)} } 
-            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-             
+            #Read ECG values for 10 x timeSpan seconds
+            for x in range(1,10):           
+                ecgMV = bitalino(client, True)
+                bpm_rate = hearRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,bpm_rate)
+                #pace to read the sensor values 
+                time.sleep(timeSpan)                 
+                    
             #x_media+=x_avgaccel
             #y_media+=y_avgaccel
-
-            print "humidity"
-            bodyHumidity, rooomHumidity = getHumidity(client, bodyPin, RoomPin, file)
             
+            print "bitalino"
+            file.write("%f," % rate)
+            message = {"pulse": {"value": form(rate)} }            
+            
+            print "humidity"
+            bodyHumidity, rooomHumidity = getHumidity(client, bodyPin, RoomPin, file)            
             print "pressure"
             getPressure(client, file)
             
+            print body_temp
+            print ctrl_temp
+            
+            file.write("%f," % body_temp)
+            file.write("%f," % ctrl_temp)
+            
             file.write(estado)
-            file.write("\n")
-        
+            file.write("\n")            
+            
         # DEBUG
         if DEBUG:
             print "Iteration"
@@ -522,9 +468,4 @@ if __name__ == '__main__':
     
     file.seek(0,0)
     # file.write(file,[temp_media,x_media,y_media])
-<<<<<<< HEAD
     file.close()
-=======
-    file.close()
-
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
