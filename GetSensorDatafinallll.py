@@ -1,6 +1,6 @@
 import json
 import time
-#import context
+# import context
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import Adafruit_TMP.TMP006 as TMP006
@@ -182,7 +182,7 @@ def GetSensorTemp(client, data):
     if dif_temp < 3 and diftemp_flag:
         message = {"body_temperature": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-        #para escrever no ficheiro
+        # Escrever no ficheiro
         body_temp = 0
         diftemp_flag = False
 
@@ -222,7 +222,7 @@ def getHumidity(client, bodyPin, RoomPin, file):
     if deltahum < 5 and flag_hum:
         message = {"dif_Humidity": {"value": 0} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
+        # Escrever no ficheiro
         bodyHumidity=0
         flag_hum=False
         
@@ -324,10 +324,10 @@ def getPressure(client,file):
         
 
 def my_state():
-    global estado
+    global state
     while True:
-        print('inserir novo estado')
-        estado = input()
+        print 'Inserir novo estado: '
+        state = input()
     
 
 ########## MAIN ##########
