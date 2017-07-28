@@ -2,7 +2,9 @@ import csv
 from sklearn import linear_model
 import numpy as np
 
+
 DEBUG = True
+
 
 def loadDataset(filename, trainingSet=[], nvariables=0):
     with open(filename, 'r') as csvfile:
