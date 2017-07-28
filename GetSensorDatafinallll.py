@@ -165,7 +165,7 @@ def InitializeValues(client):
 
 
 # Get Sensor Temperature
-def GetSensorTemp(client, data):
+def GetSensorTemp(client):
     
     global ctrltemp_flag
     global diftemp_flag
@@ -198,16 +198,9 @@ def GetSensorTemp(client, data):
         # DEBUG
         if DEBUG:
             print "Temp sent"
+    return body_temp, ctrl_temp
             
-    print body_temp
-    print ctrl_temp
-    file.write("%f " % body_temp)
-    file.write("%f " % ctrl_temp)
-    
-    #data_temp.append(ctrl_temp)
-    #data_temp.append(dif_temp)
-    
-    return body_temp
+
 
 
 # Get Sensor Humidity
@@ -276,9 +269,51 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     accel_squared = accel[0]*accel[0] + accel[1]*accel[1]
     accel_last_squared = accel_last[0]*accel_last[0] + accel_last[1]*accel_last[1]
     jerk = (accel_squared - accel_last_squared) / time_delta
+    
+    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+        message = {"x_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[0]=0
+        flag_acc=False        
+    elif accel[0]>0.1 or accel[0]<0.1:
+        if not flag_acc:
+            message = {"x_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
 
-    message = {"x_accel": {"value": form(accel[0])}, "y_accel": {"value": form(accel[1])} }
-    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+
+    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+        message = {"x_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[0]=0
+        flag_acc=False        
+    elif accel[0]>0.1 or accel[0]<0.1:
+        if not flag_acc:
+            message = {"x_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+        
+    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
+        message = {"y_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[1]=0
+        flag_acc=False        
+    elif accel[1]>0.1 or accel[1]<0.1:
+        if not flag_acc:
+            message = {"y_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"y_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
     accel_last = accel
     init_time = end_time
@@ -351,16 +386,18 @@ if __name__ == '__main__':
     accel_last, init_time = InitializeValues(client)
     file = open("data_sensors.txt", "a") 
     
-    while sensors:
+    while True:
         client.loop()
         
         print "temp"
-        temp = GetSensorTemp(client,file)
+        body_temp,ctrl_temp = GetSensorTemp(client)
         #faz a media das diferencas da temperatura
         temp_media = temp_media + temp
         data.append(temp)
         
         for i in range(1,5):
+            file.write("%f " % body_temp)
+            file.write("%f " % ctrl_temp)            
             GetAccelerometerPosition(client, accel_last, init_time, file)
 
             print "bitalino"
