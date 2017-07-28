@@ -9,6 +9,9 @@ import spidev
 import Adafruit_DHT
 import lsm303d
 import threading
+import csv
+import math
+import numpy
 
 DEBUG = True
 
@@ -86,6 +89,42 @@ creds6 = {
     'port':     1883
 }
 
+#Gives the max and min values that will be used for the tresholds
+def HeartRate(heartValue=0, TimeEnd=False, maxValues=[], minValues=[]):   
+    minHeartRate=0
+    maxHeartRate=0
+    
+    if not TimeEnd :
+        maxValues.append(float(heartValue)**3)
+    else:
+        maxValues.sort(reverse=True)
+        minValues= maxValues[-4:-1]        
+        maxValues=maxValues[:4]
+        #Calculates the mean values of the vector for the max and min values
+        minHeartRate=numpy.mean(minValues)
+        maxHeartRate=numpy.mean(maxValues)
+        return maxHeartRate,minHeartRate;    
+    return maxHeartRate, minHeartRate;
+
+#Calculates the mean value of heart rate from the last 4 values recorded
+def hearRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,rate):
+    if(ecgMV <= 0.8*minHeartRate):
+        MinimumTime= iteration*timeSpan
+                   
+    if(ecgMV >= 0.85*maxHeartRate and (iteration*timeSpan)-actualTime > 0.5 and (iteration*timeSpan)-MinimumTime < 0.35):
+        i+=1
+        oldTime=actualTime
+        actualTime= iteration*timeSpan
+        
+        if i!=0:
+            vec.append(1/(float(actualTime)-float(oldTime))*60)
+    
+        if(i>3):
+            rate=numpy.mean(vec[i-4:i-1])
+ 
+    #iteration is used to count the time and to calculate the heart rate
+    iteration=+1
+    return rate;
 
 # A delegate class providing callbacks for an MQTT client.
 class MqttDelegate(object):
@@ -285,6 +324,7 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
         message = {"x_accel": {"value": form(accel[0])} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
+
     if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
         message = {"x_accel": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
@@ -312,6 +352,38 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
             flag_acc = True
 
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+
+    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+        message = {"x_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[0]=0
+        flag_acc=False        
+    elif accel[0]>0.1 or accel[0]<0.1:
+        if not flag_acc:
+            message = {"x_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+        
+    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
+        message = {"y_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[1]=0
+        flag_acc=False        
+    elif accel[1]>0.1 or accel[1]<0.1:
+        if not flag_acc:
+            message = {"y_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+
         message = {"y_accel": {"value": form(accel[0])} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
@@ -335,11 +407,6 @@ def bitalino(client):
     bitalino = readadc(5,spi)
     ecgV = (bitalino*3.3/2**10-3.3/2)/1100 #VALUE IN VOLTS
     ecgMV = ecgV*1000 #value in mvolts
-
-    file.write("%f " % ecgMV)
-    message = {"pulse": {"value": form(ecgMV)} }
-    print ecgMV
-    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
     
     return ecgMV
 
@@ -354,9 +421,17 @@ def getPressure(client,file):
         fsr_value.append(readadc(i,spi))
         print fsr_value[i]
         file.write("%f " % fsr_value[i])
-        message = {"pressure"+str(i): {"value": fsr_value[i]} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False)     
-        
+    
+    if 
+
+
+    message = {"pressure"+str(i): {"value": fsr_value[i]} }
+    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False)
+
+
+
+
+
 
 def my_state():
     global estado
@@ -375,6 +450,19 @@ if __name__ == '__main__':
     temp_media =0
     SensorAddressSetup()
     data=[]
+    timeSpan=0.01
+    maxHeartRate=0
+    minHeartRate=0
+    maxValues=[]
+    minValues=[]
+    MinimumTime=0
+    iteration=0
+    actualTime=0
+    oldTime=0
+    bpm_rate=0.0
+    i=0
+    ecgMV=0.0
+    vec=[]    
     
     state = threading.Thread(name='my_state', target=my_state)
     state.start()
@@ -386,6 +474,21 @@ if __name__ == '__main__':
     accel_last, init_time = InitializeValues(client)
     file = open("data_sensors.txt", "a") 
     
+
+    #The first 5.2 seconds are needed to create a threshold for the max points
+    #to calculate then the heart rate
+    start = time.time()
+    while (time.time()-start)<5.2:
+        for i in range(1,5):
+            ecgMV = bitalino(client)
+            maxHeartRate, minHeartRate= HeartRate(ecgMV, False, maxValues=maxValues, minValues=minValues)
+            time.sleep(timeSpan)
+    
+    #Make the mean of values to get the threshold of max and min values
+    maxHeartRate, minHeartRate= HeartRate(ecgMV, True, maxValues=maxValues, minValues=minValues)    
+    
+
+
     while True:
         client.loop()
         
@@ -395,13 +498,33 @@ if __name__ == '__main__':
         temp_media = temp_media + temp
         data.append(temp)
         
+
+        for k in range(1,5):
+            #Read ECG values for 10 x timeSpan seconds
+            for x in range(1,10):           
+                ecgMV = bitalino(client)
+                bpm_rate = hearRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,bpm_rate)
+                #pace to read the sensor values 
+                time.sleep(timeSpan)           
+                    
+            print body_temp
+            print ctrl_temp   
+            
+            file.write(estado)
+            file.write("\n")            
+             
+
         for i in range(1,5):
+
             file.write("%f " % body_temp)
             file.write("%f " % ctrl_temp)            
             GetAccelerometerPosition(client, accel_last, init_time, file)
-
+            
             print "bitalino"
-            ecgMV = bitalino(client)    
+            file.write("%f," % bpm_rate)
+            message = {"pulse": {"value": form(bpm_rate)} } 
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+             
             #x_media+=x_avgaccel
             #y_media+=y_avgaccel
 
@@ -411,8 +534,8 @@ if __name__ == '__main__':
             print "pressure"
             getPressure(client, file)
             
-        file.write(estado)
-        file.write("\n")
+            file.write(estado)
+            file.write("\n")
         
         # DEBUG
         if DEBUG:
@@ -425,4 +548,8 @@ if __name__ == '__main__':
     
     file.seek(0,0)
     # file.write(file,[temp_media,x_media,y_media])
+
     file.close()
+
+    file.close()
+
