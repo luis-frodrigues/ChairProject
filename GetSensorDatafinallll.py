@@ -320,17 +320,11 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
             message = {"x_accel": {"value": 0}}
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
             flag_acc = True
-<<<<<<< HEAD
 
         message = {"x_accel": {"value": form(accel[0])} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
-=======
 
-        message = {"x_accel": {"value": form(accel[0])} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
     if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
         message = {"x_accel": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
@@ -357,6 +351,38 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
             message = {"y_accel": {"value": 0}}
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
             flag_acc = True
+
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+
+    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+        message = {"x_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[0]=0
+        flag_acc=False        
+    elif accel[0]>0.1 or accel[0]<0.1:
+        if not flag_acc:
+            message = {"x_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+        
+    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
+        message = {"y_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[1]=0
+        flag_acc=False        
+    elif accel[1]>0.1 or accel[1]<0.1:
+        if not flag_acc:
+            message = {"y_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
 
         message = {"y_accel": {"value": form(accel[0])} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
@@ -448,7 +474,7 @@ if __name__ == '__main__':
     accel_last, init_time = InitializeValues(client)
     file = open("data_sensors.txt", "a") 
     
-<<<<<<< HEAD
+
     #The first 5.2 seconds are needed to create a threshold for the max points
     #to calculate then the heart rate
     start = time.time()
@@ -461,8 +487,8 @@ if __name__ == '__main__':
     #Make the mean of values to get the threshold of max and min values
     maxHeartRate, minHeartRate= HeartRate(ecgMV, True, maxValues=maxValues, minValues=minValues)    
     
-=======
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
+
+
     while True:
         client.loop()
         
@@ -472,7 +498,7 @@ if __name__ == '__main__':
         temp_media = temp_media + temp
         data.append(temp)
         
-<<<<<<< HEAD
+
         for k in range(1,5):
             #Read ECG values for 10 x timeSpan seconds
             for x in range(1,10):           
@@ -487,9 +513,9 @@ if __name__ == '__main__':
             file.write(estado)
             file.write("\n")            
              
-=======
+
         for i in range(1,5):
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
+
             file.write("%f " % body_temp)
             file.write("%f " % ctrl_temp)            
             GetAccelerometerPosition(client, accel_last, init_time, file)
@@ -522,9 +548,8 @@ if __name__ == '__main__':
     
     file.seek(0,0)
     # file.write(file,[temp_media,x_media,y_media])
-<<<<<<< HEAD
-    file.close()
-=======
+
     file.close()
 
->>>>>>> 55b8f177f4573ef983470012d7b59d16c18ad510
+    file.close()
+
