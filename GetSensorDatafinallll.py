@@ -1,6 +1,11 @@
-import json
+import math
+import numpy
 import time
-#import context
+import csv
+import json
+import threading
+# import context
+
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import Adafruit_TMP.TMP006 as TMP006
@@ -8,7 +13,6 @@ import RPi.GPIO as GPIO
 import spidev
 import Adafruit_DHT
 import lsm303d
-import threading
 
 
 DEBUG = True
@@ -22,10 +26,10 @@ controltemp_Sensor = TMP006.TMP006()
 bodytemp_Sensor = TMP006.TMP006(address=0x44)
 ctrltemp_flag = 0
 diftemp_flag = False
-flag_hum= False
 
 # Humidity
 hum_sensor = Adafruit_DHT.DHT11
+flag_hum = False
 
 # Accelerometer
 accel_Sensor = lsm303d.lsm303d() # 0x1D
@@ -35,18 +39,18 @@ emotion_state = "normal"
 
 
 # mqtt credentials. Also make sure to change device_id at bottom of page
-creds = {
-    'clientId': '<ana.silvestre>',
-    'user':     '<wZLdw10g2j2thyC9mZvaXrk5xKUWGr>',
+creds1 = {
+    'clientId': '<pressure_b>',
+    'user':     '<A1E-lRel1Ay8b5uI8pvruM6uHadB1v8Baq>',
     'password': '<>',
-    'topic':    '</v1.6/devices/hp_p>',
+    'topic':    '</v1.6/devices/pressure>',
     'server':   'mqtt.things.ubidots.com',
     'port':     1883
 }
 
 creds2 = {
-    'clientId': '<pressure_b>',
-    'user':     '<lRel1Ay8b5uI8pvruM6uHadB1v8Baq>',
+    'clientId': '<pressure_d>',
+    'user':     '<A1E-4iJNU25nVLAeNUQrVU1R34ZXFKpdxi>',
     'password': '<>',
     'topic':    '</v1.6/devices/pressure>',
     'server':   'mqtt.things.ubidots.com',
@@ -54,8 +58,8 @@ creds2 = {
 }
 
 creds3 = {
-    'clientId': '<pressure_d>',
-    'user':     '<4iJNU25nVLAeNUQrVU1R34ZXFKpdxi>',
+    'clientId': '<pressure_ds>',
+    'user':     '<A1E-M21Kzt47fNVoZQSgQeUp0KWWaJ7qA0>',
     'password': '<>',
     'topic':    '</v1.6/devices/pressure>',
     'server':   'mqtt.things.ubidots.com',
@@ -64,7 +68,7 @@ creds3 = {
 
 creds4 = {
     'clientId': '<hum.temp>',
-    'user':     '<l6ZnkD9p0CJ1OfNk2pw4gIi8sYK3tm>',
+    'user':     '<A1E-l6ZnkD9p0CJ1OfNk2pw4gIi8sYK3tm>',
     'password': '<>',
     'topic':    '</v1.6/devices/pressure>',
     'server':   'mqtt.things.ubidots.com',
@@ -73,7 +77,7 @@ creds4 = {
 
 creds5 = {
     'clientId': '<accel>',
-    'user':     '<TjiSzIhMTa5EitFgugmG9ENttYCIOD>',
+    'user':     '<A1E-TjiSzIhMTa5EitFgugmG9ENttYCIOD>',
     'password': '<>',
     'topic':    '</v1.6/devices/pressure>',
     'server':   'mqtt.things.ubidots.com',
@@ -82,7 +86,7 @@ creds5 = {
 
 creds6 = {
     'clientId': '<bitpm>',
-    'user':     '<zxNGSEdwIWd8JZRCcsmfd6kOzWdXVR>',
+    'user':     '<A1E-zxNGSEdwIWd8JZRCcsmfd6kOzWdXVR>',
     'password': '<>',
     'topic':    '</v1.6/devices/pressure>',
     'server':   'mqtt.things.ubidots.com',
@@ -114,12 +118,6 @@ class MqttDelegate(object):
             print 'Message published.'
 
 
-# Sensor address setup
-def SensorAddressSetup():
-    controltemp_Sensor.begin()
-    bodytemp_Sensor.begin(samplerate = TMP006.CFG_8SAMPLE)
-
-
 # Connect to MQTT client
 def ConnectToClient(client, delegate, credentials):
     client.on_connect = delegate.on_connect
@@ -141,6 +139,12 @@ def ConnectToClient(client, delegate, credentials):
         return
 
 
+# Sensor address setup
+def SensorAddressSetup():
+    controltemp_Sensor.begin()
+    bodytemp_Sensor.begin(samplerate = TMP006.CFG_8SAMPLE)
+
+
 def form(var):
     return '{0:0.3}'.format(var)
 
@@ -158,13 +162,25 @@ def readadc(adcnum,spi):
 # Initialize Values
 def InitializeValues(client):
     # Temp
-    client.publish(topic="/v1.6/devices/test" , payload=json.dumps({"body_temperature": {"value":0}}), qos=1, retain=False )
+    client.publish(topic="/v1.6/devices/test" , payload=json.dumps({"body_temperature": {"value":0}}), qos=1, retain=False)
 
     # Accel
     accel_last = accel_Sensor.getRealAccel()
     init_time = time.time()
 
-    return accel_last, init_time
+    # ECG
+    # The first 5.2 seconds are needed to create a threshold for the max points to calculate then the heart rate
+    start = time.time()
+    while (time.time()-start) < 5.2:
+        for i in range(1,5):
+            ecgMV = bitalino(client)
+            maxHeartRate, minHeartRate = HeartRate(ecgMV, False, maxValues=maxValues, minValues=minValues)
+            time.sleep(timeSpan)
+    
+    # Make the mean of values to get the threshold of max and min values
+    maxHeartRate, minHeartRate = HeartRate(ecgMV, True, maxValues=maxValues, minValues=minValues)
+
+    return accel_last, init_time, maxHeartRate, minHeartRate
 
 
 # Get Sensor Temperature
@@ -185,7 +201,6 @@ def GetSensorTemp(client):
     if dif_temp < 3 and diftemp_flag:
         message = {"body_temperature": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-        #para escrever no ficheiro
         body_temp = 0
         diftemp_flag = False
 
@@ -201,26 +216,27 @@ def GetSensorTemp(client):
         # DEBUG
         if DEBUG:
             print "Temp sent"
+
     return body_temp, ctrl_temp
 
 
 # Get Sensor Humidity
-def getHumidity(client, bodyPin, RoomPin, file):
+def getHumidity(client, hum_bodyPin, hum_RoomPin, file):
     
     global flag_hum
-    bodyHumidity, bodyTemperature = Adafruit_DHT.read_retry(hum_sensor, bodyPin)
-    roomHumidity, bodyTemperature2 = Adafruit_DHT.read_retry(hum_sensor, RoomPin)
+
+    bodyHumidity, bodyTemperature = Adafruit_DHT.read_retry(hum_sensor, hum_bodyPin)
+    roomHumidity, bodyTemperature2 = Adafruit_DHT.read_retry(hum_sensor, hum_RoomPin)
     
-    deltahum=bodyHumidity-roomHumidity
+    deltahum = bodyHumidity-roomHumidity
 
     if deltahum < 5 and flag_hum:
         message = {"dif_Humidity": {"value": 0} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
         bodyHumidity=0
         flag_hum=False
         
-    elif deltahum>5:
+    elif deltahum > 5:
         if not flag_hum:
             message = {"dif_Humidity": {"value": 0}}
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
@@ -229,10 +245,8 @@ def getHumidity(client, bodyPin, RoomPin, file):
         message = {"dif_Humidity": {"value": form(deltahum)}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )               
     
-    file.write("%f " % bodyHumidity)
-    file.write("%f " % roomHumidity)
-
-    return bodyHumidity, roomHumidity
+    file.write("%f," % bodyHumidity)
+    file.write("%f," % roomHumidity)
 
 
 # Get Accelerometer Position
@@ -271,13 +285,12 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     accel_last_squared = accel_last[0]*accel_last[0] + accel_last[1]*accel_last[1]
     jerk = (accel_squared - accel_last_squared) / time_delta
     
-    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+    if (accel[0] < 0.1 or accel[0] > 0.1) and flag_acc:
         message = {"x_accel": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
         accel[0]=0
         flag_acc=False        
-    elif accel[0]>0.1 or accel[0]<0.1:
+    elif accel[0] > 0.1 or accel[0] < 0.1:
         if not flag_acc:
             message = {"x_accel": {"value": 0}}
             client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
@@ -286,10 +299,10 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
         message = {"x_accel": {"value": form(accel[0])} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
-    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+
+    if (accel[0] < 0.1 or accel[0] > 0.1) and flag_acc:
         message = {"x_accel": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
         accel[0]=0
         flag_acc=False        
     elif accel[0]>0.1 or accel[0]<0.1:
@@ -304,7 +317,34 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
         message = {"y_accel": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        #para escrever no ficheiro
+        accel[1]=0
+        flag_acc=False        
+    elif accel[1]>0.1 or accel[1]<0.1:
+        if not flag_acc:
+            message = {"y_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+
+    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+        message = {"x_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        accel[0]=0
+        flag_acc=False        
+    elif accel[0]>0.1 or accel[0]<0.1:
+        if not flag_acc:
+            message = {"x_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+        
+    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
+        message = {"y_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
         accel[1]=0
         flag_acc=False        
     elif accel[1]>0.1 or accel[1]<0.1:
@@ -323,26 +363,75 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     if DEBUG:
         print "Accel/jerk sent"
 
-    file.write("%f " % accel_squared)
-    file.write("%f" % jerk)
+    file.write("%f," % accel_squared)
+    file.write("%f," % jerk)
 
     time.sleep(0.2)
 
 
-# Get Bitalino bpm
+# Get Bitalino mV
 def bitalino(client):
     spi = spidev.SpiDev()
     spi.open(0,0)
     bitalino = readadc(5,spi)
-    ecgV = (bitalino*3.3/2**10-3.3/2)/1100 #VALUE IN VOLTS
-    ecgMV = ecgV*1000 #value in mvolts
-
-    file.write("%f " % ecgMV)
-    message = {"pulse": {"value": form(ecgMV)} }
-    print ecgMV
-    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+    ecgV = (bitalino*3.3/2**10-3.3/2)/1100 # value in volts
+    ecgMV = ecgV*1000 # value in milivolts
     
     return ecgMV
+
+
+# Gives the max and min values that will be used for the tresholds
+def HeartRate(heartValue=0, TimeEnd=False, maxValues=[], minValues=[]):   
+    minHeartRate=0
+    maxHeartRate=0
+    
+    if not TimeEnd:
+        maxValues.append(float(heartValue)**3)
+    else:
+        maxValues.sort(reverse=True)
+        minValues= maxValues[-4:-1]        
+        maxValues=maxValues[:4]
+        # Calculates the mean values of the vector for the max and min values
+        minHeartRate=numpy.mean(minValues)
+        maxHeartRate=numpy.mean(maxValues)
+        return maxHeartRate,minHeartRate;    
+    return maxHeartRate, minHeartRate;
+
+
+# Calculates the mean value of heart rate from the last 4 values recorded
+def HeartRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,rate):
+    if(ecgMV <= 0.8*minHeartRate):
+        MinimumTime= iteration*timeSpan
+                   
+    if(ecgMV >= 0.85*maxHeartRate and (iteration*timeSpan)-actualTime > 0.5 and (iteration*timeSpan)-MinimumTime < 0.35):
+        i+=1
+        oldTime=actualTime
+        actualTime= iteration*timeSpan
+        
+        if i!=0:
+            vec.append(1/(float(actualTime)-float(oldTime))*60)
+    
+        if i>3:
+            rate=numpy.mean(vec[i-4:i-1])
+ 
+    # Iteration is used to count the time and to calculate the heart rate
+    iteration=+1
+    return rate;
+
+
+# Get Heart bpm
+def GetHeartRate(client, file, ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate):
+
+    # Read ECG values for 10 x timeSpan seconds
+    for x in range(1,10):
+        ecgMV = bitalino(client)
+        bpm_rate = HeartRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate)
+        # pace to read the sensor values 
+        time.sleep(timeSpan)
+
+    message = {"pulse": {"value": form(bpm_rate)} } 
+    client.publish(topic="/v6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+    file.write("%f," % bpm_rate)
 
 
 # Get Sensor Pressure 
@@ -354,7 +443,7 @@ def getPressure(client,file):
     for i in range(5):
         fsr_value.append(readadc(i,spi))
         print fsr_value[i]
-        file.write("%f " % fsr_value[i])
+        file.write("%f," % fsr_value[i])
 
     # Back position
     if fsr_value[0] < 10 and fsr_value[3] < 10:
@@ -395,61 +484,104 @@ def my_state():
 
 if __name__ == '__main__':
 
+    # Sensor reading flag
     sensors = True
-    bodyPin = 17
-    RoomPin = 18    
-    temp_media =0
-    SensorAddressSetup()
-    data=[]
+    # data=[]
     
-    emotion_state = threading.Thread(name='my_state', target=my_state)
-    emotion_state.start()
-    
-    client = mqtt.Client(client_id=creds['clientId'])
-    delegate = MqttDelegate(client, creds)
-    ConnectToClient(client, delegate, creds)
+    # Humidity
+    hum_bodyPin = 17
+    hum_RoomPin = 18
 
-    accel_last, init_time = InitializeValues(client)
-    file = open("data_sensors.txt", "a") 
+    # ECG
+    maxValues=[]
+    minValues=[]
+    ecgMV=0.0
+    maxHeartRate=0
+    minHeartRate=0
+    vec=[]
+    timeSpan=0.01
+    actualTime=0
+    oldTime=0
+    MinimumTime=0
+    iteration=0
+    max_count=0
+    bpm_rate=0.0
+
+    # Cloud Clients
+    client1 = mqtt.Client(client_id=creds1['clientId'])
+    delegate1 = MqttDelegate(client1, creds1)
+    ConnectToClient(client1, delegate1, creds1)
+    client2 = mqtt.Client(client_id=creds2['clientId'])
+    delegate2 = MqttDelegate(client2, creds2)
+    ConnectToClient(client2, delegate2, creds2)
+    client3 = mqtt.Client(client_id=creds3['clientId'])
+    delegate3 = MqttDelegate(client3, creds3)
+    ConnectToClient(client3, delegate3, creds3)
+    client4 = mqtt.Client(client_id=creds4['clientId'])
+    delegate4 = MqttDelegate(client4, creds4)
+    ConnectToClient(client4, delegate4, creds4)
+    client5 = mqtt.Client(client_id=creds5['clientId'])
+    delegate5 = MqttDelegate(client5, creds5)
+    ConnectToClient(client5, delegate5, creds5)
+    client6 = mqtt.Client(client_id=creds6['clientId'])
+    delegate6 = MqttDelegate(client6, creds6)
+    ConnectToClient(client6, delegate6, creds6)
+
+    SensorAddressSetup()
+
+    file = open("data_sensors.txt", "a")
+
+    emotion_state = threading.Thread(name='my_state', target=my_state)
+    emotion_state.start() 
+
+    accel_last, init_time, maxHeartRate, minHeartRate = InitializeValues(client, maxHeartRate, minHeartRate, timeSpan, ecgMV, maxValues=maxValues, minValues=minValues)
     
-    while True:
+
+    ### EL CICLO ###
+
+    while True: # replace with "sensors"
         client.loop()
         
         print "temp"
         body_temp,ctrl_temp = GetSensorTemp(client)
-        #faz a media das diferencas da temperatura
-        temp_media = temp_media + temp
-        data.append(temp)
+        # temp_media = temp_media + temp
+        # data.append(temp)
         
-        for i in range(1,5):
-            file.write("%f " % body_temp)
-            file.write("%f " % ctrl_temp)            
+        for k in range(1,5):
+            print body_temp
+            file.write("%f," % body_temp)
+            print ctrl_temp
+            file.write("%f," % ctrl_temp) 
+
+            print "acceleration"
             GetAccelerometerPosition(client, accel_last, init_time, file)
             #x_media+=x_avgaccel
             #y_media+=y_avgaccel
 
             print "bitalino"
-            ecgMV = bitalino(client)
-
+            GetHeartRate(client, file, ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate)
+            
             print "humidity"
-            bodyHumidity, rooomHumidity = getHumidity(client, bodyPin, RoomPin, file)
+            getHumidity(client, hum_bodyPin, hum_RoomPin, file)
             
             print "pressure"
             getPressure(client, file)
             
-        file.write(emotion_state)
-        file.write("\n")
+            file.write(emotion_state)
+            file.write("\n")
+
+            # DEBUG
+            if DEBUG:
+                print "In Iteration"
         
         # DEBUG
         if DEBUG:
-            print "Iteration"
+            print "Out Iteration"
         
-    # print(len(file))    
+    # print(len(file))
     # temp_media=temp_media/len(file)
     # x_global=x_media/len(file)
     # y_global=y_media/len(file)
     
-    file.seek(0,0)
-    # file.write(file,[temp_media,x_media,y_media])
+    # file.seek(0,0)
     file.close()
-
