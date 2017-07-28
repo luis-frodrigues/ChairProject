@@ -20,16 +20,17 @@ controltemp_Sensor = TMP006.TMP006()
 bodytemp_Sensor = TMP006.TMP006(address=0x44)
 ctrltemp_flag = 0
 diftemp_flag = False
-flag_hum= False
 
 # Humidity
 hum_sensor = Adafruit_DHT.DHT11
+flag_hum = False
 
 # Accelerometer
 accel_Sensor = lsm303d.lsm303d() # 0x1D
 
+# State
+emotion_state = "normal"
 
-estado= "normal"
 
 # mqtt credentials. Also make sure to change device_id at bottom of page
 creds = {
@@ -324,10 +325,10 @@ def getPressure(client,file):
         
 
 def my_state():
-    global state
+    global emotion_state
     while True:
         print 'Inserir novo estado: '
-        state = input()
+        emotion_state = input()
     
 
 ########## MAIN ##########
@@ -341,8 +342,8 @@ if __name__ == '__main__':
     SensorAddressSetup()
     data=[]
     
-    state = threading.Thread(name='my_state', target=my_state)
-    state.start()
+    emotion_state = threading.Thread(name='my_state', target=my_state)
+    emotion_state.start()
     
     client = mqtt.Client(client_id=creds['clientId'])
     delegate = MqttDelegate(client, creds)
@@ -374,7 +375,7 @@ if __name__ == '__main__':
             print "pressure"
             getPressure(client, file)
             
-        file.write(estado)
+        file.write(emotion_state)
         file.write("\n")
         
         # DEBUG
