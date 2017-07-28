@@ -1,6 +1,6 @@
 import json
 import time
-# import context
+#import context
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import Adafruit_TMP.TMP006 as TMP006
@@ -20,17 +20,16 @@ controltemp_Sensor = TMP006.TMP006()
 bodytemp_Sensor = TMP006.TMP006(address=0x44)
 ctrltemp_flag = 0
 diftemp_flag = False
+flag_hum= False
 
 # Humidity
 hum_sensor = Adafruit_DHT.DHT11
-flag_hum = False
 
 # Accelerometer
 accel_Sensor = lsm303d.lsm303d() # 0x1D
 
-# State
-emotion_state = "normal"
 
+estado= "normal"
 
 # mqtt credentials. Also make sure to change device_id at bottom of page
 creds = {
@@ -166,7 +165,7 @@ def InitializeValues(client):
 
 
 # Get Sensor Temperature
-def GetSensorTemp(client, data):
+def GetSensorTemp(client):
     
     global ctrltemp_flag
     global diftemp_flag
@@ -183,7 +182,7 @@ def GetSensorTemp(client, data):
     if dif_temp < 3 and diftemp_flag:
         message = {"body_temperature": {"value": 0}}
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
-        # Escrever no ficheiro
+        #para escrever no ficheiro
         body_temp = 0
         diftemp_flag = False
 
@@ -199,16 +198,9 @@ def GetSensorTemp(client, data):
         # DEBUG
         if DEBUG:
             print "Temp sent"
+    return body_temp, ctrl_temp
             
-    print body_temp
-    print ctrl_temp
-    file.write("%f " % body_temp)
-    file.write("%f " % ctrl_temp)
-    
-    #data_temp.append(ctrl_temp)
-    #data_temp.append(dif_temp)
-    
-    return body_temp
+
 
 
 # Get Sensor Humidity
@@ -223,7 +215,7 @@ def getHumidity(client, bodyPin, RoomPin, file):
     if deltahum < 5 and flag_hum:
         message = {"dif_Humidity": {"value": 0} }
         client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
-        # Escrever no ficheiro
+        #para escrever no ficheiro
         bodyHumidity=0
         flag_hum=False
         
@@ -277,9 +269,51 @@ def GetAccelerometerPosition(client, accel_last, init_time, file):
     accel_squared = accel[0]*accel[0] + accel[1]*accel[1]
     accel_last_squared = accel_last[0]*accel_last[0] + accel_last[1]*accel_last[1]
     jerk = (accel_squared - accel_last_squared) / time_delta
+    
+    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+        message = {"x_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[0]=0
+        flag_acc=False        
+    elif accel[0]>0.1 or accel[0]<0.1:
+        if not flag_acc:
+            message = {"x_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
 
-    message = {"x_accel": {"value": form(accel[0])}, "y_accel": {"value": form(accel[1])} }
-    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+
+    if (accel[0]<0.1 or accel[0]>0.1) and flag_acc:
+        message = {"x_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[0]=0
+        flag_acc=False        
+    elif accel[0]>0.1 or accel[0]<0.1:
+        if not flag_acc:
+            message = {"x_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"x_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+        
+    if (accel[1]<0.1 or accel[1]>0.1) and flag_acc:
+        message = {"y_accel": {"value": 0}}
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False ) 
+        #para escrever no ficheiro
+        accel[1]=0
+        flag_acc=False        
+    elif accel[1]>0.1 or accel[1]<0.1:
+        if not flag_acc:
+            message = {"y_accel": {"value": 0}}
+            client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+            flag_acc = True
+
+        message = {"y_accel": {"value": form(accel[0])} }
+        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
 
     accel_last = accel
     init_time = end_time
@@ -325,10 +359,10 @@ def getPressure(client,file):
         
 
 def my_state():
-    global emotion_state
+    global estado
     while True:
-        print 'Inserir novo estado: '
-        emotion_state = input()
+        print('inserir novo estado')
+        estado = input()
     
 
 ########## MAIN ##########
@@ -342,8 +376,8 @@ if __name__ == '__main__':
     SensorAddressSetup()
     data=[]
     
-    emotion_state = threading.Thread(name='my_state', target=my_state)
-    emotion_state.start()
+    state = threading.Thread(name='my_state', target=my_state)
+    state.start()
     
     client = mqtt.Client(client_id=creds['clientId'])
     delegate = MqttDelegate(client, creds)
@@ -352,16 +386,18 @@ if __name__ == '__main__':
     accel_last, init_time = InitializeValues(client)
     file = open("data_sensors.txt", "a") 
     
-    while sensors:
+    while True:
         client.loop()
         
         print "temp"
-        temp = GetSensorTemp(client,file)
+        body_temp,ctrl_temp = GetSensorTemp(client)
         #faz a media das diferencas da temperatura
         temp_media = temp_media + temp
         data.append(temp)
         
         for i in range(1,5):
+            file.write("%f " % body_temp)
+            file.write("%f " % ctrl_temp)            
             GetAccelerometerPosition(client, accel_last, init_time, file)
 
             print "bitalino"
@@ -375,7 +411,7 @@ if __name__ == '__main__':
             print "pressure"
             getPressure(client, file)
             
-        file.write(emotion_state)
+        file.write(estado)
         file.write("\n")
         
         # DEBUG
@@ -390,3 +426,4 @@ if __name__ == '__main__':
     file.seek(0,0)
     # file.write(file,[temp_media,x_media,y_media])
     file.close()
+
