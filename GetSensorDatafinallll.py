@@ -320,9 +320,17 @@ def getPressure(client,file):
         fsr_value.append(readadc(i,spi))
         print fsr_value[i]
         file.write("%f " % fsr_value[i])
-        message = {"pressure"+str(i): {"value": fsr_value[i]} }
-        client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False)     
-        
+    
+    if 
+
+
+    message = {"pressure"+str(i): {"value": fsr_value[i]} }
+    client.publish(topic="/v1.6/devices/test" , payload=json.dumps(message), qos=1, retain=False)
+
+
+
+
+
 
 def my_state():
     global emotion_state
