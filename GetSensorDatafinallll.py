@@ -93,7 +93,6 @@ creds6 = {
     'port':     1883
 }
 
-
 # A delegate class providing callbacks for an MQTT client.
 class MqttDelegate(object):
     
@@ -394,12 +393,12 @@ def HeartRate(heartValue=0, TimeEnd=False, maxValues=[], minValues=[]):
         # Calculates the mean values of the vector for the max and min values
         minHeartRate=numpy.mean(minValues)
         maxHeartRate=numpy.mean(maxValues)
-        return maxHeartRate,minHeartRate;    
-    return maxHeartRate, minHeartRate;
+        return maxHeartRate,minHeartRate    
+    return maxHeartRate, minHeartRate
 
 
 # Calculates the mean value of heart rate from the last 4 values recorded
-def HeartRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,rate):
+def HeartRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, i ,rate=[]):
     if(ecgMV <= 0.8*minHeartRate):
         MinimumTime= iteration*timeSpan
                    
@@ -412,26 +411,35 @@ def HeartRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actual
             vec.append(1/(float(actualTime)-float(oldTime))*60)
     
         if i>3:
-            rate=numpy.mean(vec[i-4:i-1])
+            #stores the actual and the previous mean value of the 4 maximums recorded
+            rate[0]= rate[1]
+            rate[1]=numpy.mean(vec[i-4:i-1])
  
     # Iteration is used to count the time and to calculate the heart rate
     iteration=+1
-    return rate;
+    #Time between the actual and the previous maximum
+    time_delta=float(actualTime)-float(oldTime)
+    return rate, time_delta
 
 
 # Get Heart bpm
-def GetHeartRate(client, file, ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate):
+def GetHeartRate(client, file, ecgMV, minHeartRate, maxHeartRate, vec=[], timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate=[]):
 
     # Read ECG values for 10 x timeSpan seconds
     for x in range(1,10):
         ecgMV = bitalino(client)
-        bpm_rate = HeartRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate)
+        bpm_rate, time_delta = HeartRateAverage(ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate)
         # pace to read the sensor values 
         time.sleep(timeSpan)
-
+    #Calculates the derivative between the actual and the previous heart rate mean value
+    bpm_rate_derivative = (bpm_rate[1]-bpm_rate[0])/time_delta
+    
     message = {"pulse": {"value": form(bpm_rate)} } 
     client.publish(topic="/v6/devices/test" , payload=json.dumps(message), qos=1, retain=False )
+    #message = {"bpm_rate_derivative": {"value": form(bpm_rate_derivative)} } 
+    #client.publish(topic="/v6/devices/test" , payload=json.dumps(message), qos=1, retain=False )    
     file.write("%f," % bpm_rate)
+    file.write("%f," % bpm_rate_derivative)
 
 
 # Get Sensor Pressure 
@@ -505,7 +513,7 @@ if __name__ == '__main__':
     MinimumTime=0
     iteration=0
     max_count=0
-    bpm_rate=0.0
+    bpm_rate={0.0, 0.0}
 
     # Cloud Clients
     client1 = mqtt.Client(client_id=creds1['clientId'])
@@ -559,7 +567,7 @@ if __name__ == '__main__':
             #y_media+=y_avgaccel
 
             print "bitalino"
-            GetHeartRate(client, file, ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate)
+            GetHeartRate(client, file, ecgMV, minHeartRate, maxHeartRate, vec=vec, timeSpan, actualTime, oldTime, MinimumTime, iteration, max_count, bpm_rate=bpm_rate)
             
             print "humidity"
             getHumidity(client, hum_bodyPin, hum_RoomPin, file)
@@ -578,10 +586,6 @@ if __name__ == '__main__':
         if DEBUG:
             print "Out Iteration"
         
-    # print(len(file))
-    # temp_media=temp_media/len(file)
-    # x_global=x_media/len(file)
-    # y_global=y_media/len(file)
     
     # file.seek(0,0)
     file.close()
