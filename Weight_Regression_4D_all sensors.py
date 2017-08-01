@@ -24,11 +24,11 @@ def loadDataset(filename, trainingSet=[], nvariables=0):
 
 
 def main():
-    # prepare data (P1, P2, Weight)
+    # prepare data (P1, P2, P3, Weight)
     trainingSet=[]
     testSet=[]    
-    loadDataset('training_Weights.txt',  trainingSet, 3)
-    loadDataset('test_Weights.txt', testSet, 2)
+    loadDataset('training_Weights.txt',  trainingSet, 4)
+    loadDataset('test_Weights.txt', testSet, 3)
 
     if DEBUG:
         print ('Train set: ' + repr(len(trainingSet)))
@@ -38,14 +38,14 @@ def main():
     regr = linear_model.LinearRegression()
 
     # Train the model using the training sets
-    regr.fit([[i[j] for j in range(2)] for i in trainingSet], [i[2] for i in trainingSet])
+    regr.fit([[i[j] for j in range(3)] for i in trainingSet], [i[3] for i in trainingSet])
     
     if DEBUG:
         print ('\nCoefficients:   ', regr.coef_)
         # Mean Squared Error test
-        print ('Mean squared error: %.2f' % np.mean((regr.predict([[400.,400.],[500,500]]) - [70,75]) ** 2))
+        print ('Mean squared error: %.2f' % np.mean((regr.predict([[400.,200.,200.],[500,200,200]]) - [70,75]) ** 2))
         # Variance score: 1 is perfect prediction
-        print ('Variance score: %.2f' % regr.score([[400.,400.],[500,500]],[70,75]))
+        print ('Variance score: %.2f' % regr.score([[400.,200.,200.],[500,200,200]],[70,75]))
 
     print ('\nPrediction test: ', regr.predict(testSet))
 
